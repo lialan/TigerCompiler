@@ -10,7 +10,8 @@ maintainer:          example@example.com
 copyright:           2016 Author name here
 category:            Web
 build-type:          Simple
--- extra-source-files:
+extra-source-files:  app/Tiger/TigerLexer.x
+                     app/Tiger/TigerParser.y
 cabal-version:       >=1.10
 
 library
@@ -27,7 +28,10 @@ executable TigerCompiler-exe
                      , TigerCompiler
                      , array
                      , haskeline
+  build-tools:         happy, alex
   default-language:    Haskell2010
+  other-modules:       Tiger.TigerParser
+                       Tiger.TigerLexer
 
 test-suite TigerCompiler-test
   type:                exitcode-stdio-1.0
