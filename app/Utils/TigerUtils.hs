@@ -5,6 +5,7 @@ import System.Console.Haskeline
 
 import Tiger.TigerParser
 import Tiger.TigerLexer (scanTokens)
+import Tiger.TigerLanguage
 
 import Codegen.TigerCodegen
 

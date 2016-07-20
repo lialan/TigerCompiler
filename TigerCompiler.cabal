@@ -29,6 +29,10 @@ executable TigerCompiler-exe
                      , array
                      , haskeline
                      , llvm-general
+                     , llvm-general-pure
+                     , containers
+                     , lens
+                     , mtl
   build-tools:         happy, alex
   default-language:    Haskell2010
   other-modules:       Tiger.TigerParser
