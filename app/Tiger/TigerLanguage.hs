@@ -36,7 +36,7 @@ data Ty = NameTy Symbol
 
 data Oper = PlusOp | MinusOp | TimesOp | DivideOp | AndOp | OrOp
           | EqOp | NeqOp | LtOp | LeOp | GtOp | GeOp
-         deriving Show
+         deriving (Eq, Ord, Show)
 
 data Field = Field { fieldName :: Symbol, fieldEscape :: Bool, fieldType :: Ty }
            deriving Show

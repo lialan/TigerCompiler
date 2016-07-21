@@ -8,7 +8,8 @@ import Tiger.TigerLexer (scanTokens)
 import Tiger.TigerLanguage
 
 import Codegen.TigerCodegen
-
+import Codegen.TigerInstruction
+import Codegen.TigerEmit
 
 process :: String -> IO ()
 process line = print $ tigerParser (scanTokens line)
