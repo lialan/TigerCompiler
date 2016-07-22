@@ -3,7 +3,6 @@ extra-package-dbs: []
 packages:
 - '.'
 extra-deps:
-- llvm-general-3.5.0.0
 - llvm-general-pure-3.5.0.0
 - text-1.2.2.1
-resolver: lts-6.7
+resolver: lts-6.2
