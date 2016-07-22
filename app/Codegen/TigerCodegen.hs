@@ -1,5 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 module Codegen.TigerCodegen where
 
 -- Tiger compiler bindings
@@ -54,14 +56,15 @@ emptyBlock :: Int -> Block
 emptyBlock i = Block i [] Nothing
 
 data CodegenState = CodegenState {
-  currentBlock :: AST.Name,
-  blocks       :: Map.Map AST.Name Block,
+  _currentBlock :: AST.Name,
+  _blocks       :: Map.Map AST.Name Block,
   symtab       :: SymbolTable,
   blockCount   :: Int,
-  count        :: Word,
+  _count        :: Word,
   names        :: Names
 } deriving Show
 
+makeLenses ''CodegenState
 
 emptyCodegen :: CodegenState
 emptyCodegen = CodegenState (AST.Name entryBlockName)
@@ -70,8 +73,8 @@ emptyCodegen = CodegenState (AST.Name entryBlockName)
 
 modifyBlock :: Block -> Codegen ()
 modifyBlock nb = do
-  active <- gets currentBlock
-  modify $ \s -> s { blocks = Map.insert active nb (blocks s)}
+  active <- use currentBlock
+  modify' $ blocks . at active ?~ nb
 
 
 newtype Codegen a = Codegen { runCodegen :: State CodegenState a }
@@ -87,7 +90,7 @@ emptyModule :: Symbol -> AST.Module
 emptyModule label = AST.defaultModule { AST.moduleName = label }
 
 entry :: Codegen AST.Name
-entry = gets currentBlock
+entry = use currentBlock
 
 entryBlockName :: String
 entryBlockName = "entry"
@@ -98,9 +101,8 @@ execCodegen mcg = execState (runCodegen mcg) emptyCodegen
 
 fresh :: Codegen Word
 fresh = do
-    i <- gets count
-    modify' $ \s -> s { count = 1 + i }
-    return $ i + 1
+    count += 1
+    use count
 
 instr :: AST.Instruction -> Codegen AST.Operand
 instr ins = do
@@ -126,9 +128,9 @@ local = AST.LocalReference Type.i64
 
 current :: Codegen Block
 current = do
-  c <- gets currentBlock
-  blks <- gets blocks
-  case Map.lookup c blks of
+  c <- use currentBlock
+  blks <- use blocks
+  case  blks^.at c of
     Just x -> return x
     Nothing -> error $ "No such block: " ++ show c
 
@@ -151,7 +153,7 @@ getvar var = do
 -- Blocks
 setBlock :: AST.Name -> Codegen AST.Name
 setBlock name = do
-  modify $ \s -> s { currentBlock = name }
+  currentBlock .= name
   return name
 
 
