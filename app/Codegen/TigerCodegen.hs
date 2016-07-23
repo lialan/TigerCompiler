@@ -21,6 +21,8 @@ import qualified Data.Map.Strict as Map
 import Control.Lens
 import Data.Map.Lens
 import Data.String
+import qualified Data.Sequence as Seq
+import Data.Maybe
 
 -- Symbol Table
 type SymbolTable = [(Symbol, AST.Operand)]
@@ -49,7 +51,7 @@ type NamedTerminator  = AST.Named AST.Terminator
 
 data BasicBlock = BasicBlock {
   _idx :: Int,
-  _instrs :: [NamedInstruction],
+  _instrs :: Seq.Seq NamedInstruction,
   _term :: Maybe (NamedTerminator),
   _name :: AST.Name
 } deriving Show
@@ -62,7 +64,7 @@ emptyBlockTable :: Map.Map AST.Name BB
 emptyBlockTable = Map.empty
 
 emptyBlock :: Int -> AST.Name -> BB
-emptyBlock i name = BasicBlock i [] Nothing name
+emptyBlock i name = BasicBlock i Seq.empty Nothing name
 
 data CodegenState = CodegenState {
   _curBlkName   :: AST.Name,
@@ -79,12 +81,6 @@ emptyCodegen :: CodegenState
 emptyCodegen = CodegenState (AST.Name entryBlockName)
                             emptyBlockTable emptySymbolTable 1 0
                             emptyNames
-
-modifyBlock :: BB -> Codegen ()
-modifyBlock nb = do
-  active <- use curBlkName
-  modify' $ bbs . at active ?~ nb
-
 
 newtype Codegen a = Codegen { runCodegen :: State CodegenState a }
   deriving (Functor, Applicative, Monad, MonadState CodegenState)
@@ -108,26 +104,22 @@ execCodegen :: Codegen a -> CodegenState
 execCodegen mcg = execState (runCodegen mcg) emptyCodegen
 
 
-fresh :: Codegen Word
-fresh = do
+nextCount :: Codegen Word
+nextCount = do
     count += 1
     use count
 
+-- Returns the reference to the generated instruction
 instr :: AST.Instruction -> Codegen AST.Operand
-instr ins = do
-  n <- fresh
+instr i = do
+  n <- nextCount
   let ref = (AST.UnName n)
-  blk <- current
-  let i = _instrs blk
-  let newInst = ref AST.:= ins
-  modifyBlock (blk { _instrs = i ++ [newInst] })
+  let newInst = ref AST.:= i
+  emitInst newInst
   return $ local ref
 
 terminator :: NamedTerminator -> Codegen (NamedTerminator)
-terminator trm = do
-  blk <- current
-  modifyBlock (blk { _term = Just trm })
-  return trm
+terminator trm = emitTerm trm >> return trm
 
 insertInstruction :: NamedInstruction -> Codegen ()
 insertInstruction inst = undefined
@@ -138,8 +130,8 @@ insertInstruction inst = undefined
 local :: AST.Name -> AST.Operand
 local = AST.LocalReference Type.i64
 
-current :: Codegen BB
-current = do
+currentBB :: Codegen BB
+currentBB = do
   c <- use curBlkName
   blks <- use bbs
   case  blks^.at c of
@@ -182,8 +174,18 @@ setBB name = do
   curBlkName .= name
   return name
 
+emitInst :: NamedInstruction -> Codegen ()
+emitInst inst = do
+  b  <- currentBB
+  bn <- use curBlkName
+  let b' = over instrs (\x -> x |> inst) b
+  modify' $ bbs . at bn ?~ b'
 
-
+emitTerm :: NamedTerminator -> Codegen ()
+emitTerm t = do
+  b <- currentBB
+  bn <- use curBlkName
+  modify' $ bbs . at bn ?~ set term (Just t) b
 
 
 
