@@ -18,18 +18,15 @@ codegen :: Exp -> Codegen A.Operand
 codegen (IntExp i) = return $ A.ConstantOperand $ C.Int 64 i
 
 -- variables should be handled separately
-codegen (VarExp v) = cgVar v >>= load
+codegen (VarExp v) = undefined -- cgVar v >>= load
 
 codegen (OpExp lhs op rhs) =
   case binops^.at op of
-    Just f  -> do
-      cgl <- codegen lhs
-      cgr <- codegen rhs
-      f cgl cgr
+    Just f  -> instr =<< f <$> codegen lhs <*> codegen rhs
     Nothing -> error $ "unsupported operation: " ++ show op
 
 -- call
-codegen (CallExp f args) = call (externFunc (A.Name f)) =<< mapM codegen args
+codegen (CallExp f args) = instr =<< call (externFunc (A.Name f)) <$> mapM codegen args
 
 codegen (SeqExp [exprs]) = undefined
 

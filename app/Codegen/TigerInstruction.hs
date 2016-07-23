@@ -14,50 +14,50 @@ import LLVM.General.AST.CallingConvention as CC
 
 
 -- arithmatic instructions
-add, sub, mul :: A.Operand -> A.Operand -> Codegen A.Operand
-add a b = instr $ A.Add True True a b []
-sub a b = instr $ A.Sub True True a b []
-mul a b = instr $ A.Mul True True a b []
+add, sub, mul :: A.Operand -> A.Operand -> A.Instruction
+add a b = A.Add True True a b []
+sub a b = A.Sub True True a b []
+mul a b = A.Mul True True a b []
 
 -- comparisons:
-lt, gt, le, ge, eq, ne :: A.Operand -> A.Operand -> Codegen A.Operand
-lt l r = instr $ I.ICmp IP.SLT l r []
-gt l r = instr $ I.ICmp IP.SGT l r []
-le l r = instr $ I.ICmp IP.SLE l r []
-ge l r = instr $ I.ICmp IP.SGE l r []
-ne l r = instr $ I.ICmp IP.NE  l r []
-eq l r = instr $ I.ICmp IP.EQ  l r []
+lt, gt, le, ge, eq, ne :: A.Operand -> A.Operand -> A.Instruction
+lt l r = I.ICmp IP.SLT l r []
+gt l r = I.ICmp IP.SGT l r []
+le l r = I.ICmp IP.SLE l r []
+ge l r = I.ICmp IP.SGE l r []
+ne l r = I.ICmp IP.NE  l r []
+eq l r = I.ICmp IP.EQ  l r []
 
 -- bitwise:
-and_, or_ :: A.Operand -> A.Operand -> Codegen A.Operand
-and_ l r = instr $ A.And l r []
-or_  l r = instr $ A.Or  l r []
+and_, or_ :: A.Operand -> A.Operand -> A.Instruction
+and_ l r = A.And l r []
+or_  l r = A.Or  l r []
 
 
 -- branch instructions
-br :: A.Name -> Codegen (A.Named A.Terminator)
+br :: A.Name -> Codegen (NamedTerminator)
 br val = terminator $ I.Do $ I.Br val []
 
-cbr :: A.Operand -> A.Name -> A.Name -> Codegen (A.Named A.Terminator)
+cbr :: A.Operand -> A.Name -> A.Name -> Codegen (NamedTerminator)
 cbr cond tr fl = terminator $ I.Do $ I.CondBr cond tr fl []
 
-ret :: A.Operand -> Codegen (A.Named A.Terminator)
+ret :: A.Operand -> Codegen (NamedTerminator)
 ret val = terminator $ I.Do $ I.Ret (Just val) []
 
 
 -- effect instructions
-call :: A.Operand -> [A.Operand] -> Codegen A.Operand
-call fn args = instr $ I.Call Nothing CC.C [] (Right fn) (toArgs args) [] []
+call :: A.Operand -> [A.Operand] -> A.Instruction
+call fn args = I.Call Nothing CC.C [] (Right fn) (toArgs args) [] []
     where toArgs = map (\x -> (x , []))
 
-alloca :: A.Type -> Codegen A.Operand
-alloca ty = instr $ I.Alloca ty Nothing 0 []
+alloca :: A.Type -> A.Instruction
+alloca ty = I.Alloca ty Nothing 0 []
 
-store :: A.Operand -> A.Operand -> Codegen A.Operand
-store ptr val = instr $ I.Store False ptr val Nothing 0 []
+store :: A.Operand -> A.Operand -> A.Instruction
+store ptr val = I.Store False ptr val Nothing 0 []
 
-load :: A.Operand -> Codegen A.Operand
-load ptr = instr $ I.Load False ptr Nothing 0 []
+load :: A.Operand -> A.Instruction
+load ptr = I.Load False ptr Nothing 0 []
 
 -- function references
 externFunc :: A.Name -> A.Operand
