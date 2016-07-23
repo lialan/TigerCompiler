@@ -10,8 +10,8 @@ import Tiger.TigerLanguage
 -- LLVM bindings
 import qualified LLVM.General.AST as AST
 import qualified LLVM.General.AST.Type as Type
-
-
+import qualified LLVM.General.AST.Global as Global
+import qualified LLVM.General.AST.Constant as Constant
 -- states and monads
 import Control.Monad.State.Strict
 import Control.Applicative
@@ -25,10 +25,10 @@ import qualified Data.Sequence as Seq
 import Data.Maybe
 
 -- Symbol Table
-type SymbolTable = [(Symbol, AST.Operand)]
+type SymbolTable = [Map.Map Symbol AST.Operand]
 
 emptySymbolTable :: SymbolTable
-emptySymbolTable = []
+emptySymbolTable = [Map.empty]
 
 -- Name Table
 type Names = Map.Map Symbol Int
@@ -105,9 +105,7 @@ execCodegen mcg = execState (runCodegen mcg) emptyCodegen
 
 
 nextCount :: Codegen Word
-nextCount = do
-    count += 1
-    use count
+nextCount = count += 1 >> use count
 
 -- Returns the reference to the generated instruction
 instr :: AST.Instruction -> Codegen AST.Operand
@@ -140,19 +138,36 @@ currentBB = do
 
 
 -- Symbol Table
+enterSTScope :: Codegen ()
+enterSTScope = do
+  st <- use symtab
+  symtab .= [Map.empty] ++ st
+
+exitSTScope :: Codegen ()
+exitSTScope = do
+  st <- use symtab
+  symtab .= tail st
+
 assign :: Symbol -> AST.Operand -> Codegen ()
 assign var x = do
-    st <- use symtab
-    symtab .= [(var, x)] ++ st
+    st@(h:t) <- use symtab
+    when (st == []) $ error $ "Current symbol table is empty."
+    symtab .= [Map.insert var x h] ++ t
 
--- TODO: this will have to change to a stack type.
+-- find the first occurrence from the stack.
 getvar :: Symbol -> Codegen AST.Operand
 getvar var = do
   st <- use symtab
-  case lookup var st of
-    Just x  -> return x
-    Nothing -> error $ "Local variable not in scope: " ++ show var
+  let result = lookupST st var
+  when (isFunction result) $ error $ "var " ++ show var ++ " is shadowed by a function."
+  return result
 
+lookupST :: SymbolTable -> Symbol -> AST.Operand
+lookupST st s = case st of
+  []     -> error $ "Local variable not in scope: " ++ show s
+  (x:xs) -> case x^.at s of
+              Just x  -> x
+              Nothing -> lookupST xs s
 
 -- Blocks
 addBB :: Symbol -> Codegen AST.Name
@@ -187,10 +202,18 @@ emitTerm t = do
   bn <- use curBlkName
   modify' $ bbs . at bn ?~ set term (Just t) b
 
+-- Function definitions
+type Arguments = [(Type.Type, AST.Name)]
+type FunctionBody = [Global.BasicBlock]
+createFuncDef :: Type.Type -> Symbol -> Arguments -> FunctionBody -> AST.Definition
+createFuncDef rt fn args body = AST.GlobalDefinition $ AST.functionDefaults {
+  Global.name        = AST.Name fn,
+  Global.parameters  = ([AST.Parameter ty nm [] | (ty, nm) <- args], False),
+  Global.returnType  = rt,
+  Global.basicBlocks = body
+}
 
-
-
-
-
-
-
+-- we need a way to identify
+isFunction :: AST.Operand -> Bool
+isFunction (AST.ConstantOperand (Constant.GlobalReference (Type.FunctionType _ _ _) _)) = True
+isFunction _ = False
