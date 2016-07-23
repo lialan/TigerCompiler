@@ -9,6 +9,7 @@ import qualified LLVM.General.AST as A
 import qualified LLVM.General.AST.Constant as C
 
 
+import Control.Lens
 import qualified Data.Map as Map
 
 -- all integers are 64 bit at the moment...
@@ -20,7 +21,7 @@ codegen (IntExp i) = return $ A.ConstantOperand $ C.Int 64 i
 codegen (VarExp v) = cgVar v >>= load
 
 codegen (OpExp lhs op rhs) =
-  case Map.lookup op binops of
+  case binops^.at op of
     Just f  -> do
       cgl <- codegen lhs
       cgr <- codegen rhs
