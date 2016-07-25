@@ -1,6 +1,7 @@
 module Codegen.TigerInstruction where
 
 import Tiger.TigerLanguage
+import Codegen.TigerEnvironment
 import Codegen.TigerCodegen
 
 import LLVM.General.AST as A
