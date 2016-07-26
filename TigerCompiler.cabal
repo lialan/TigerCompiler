@@ -41,6 +41,9 @@ executable TigerCompiler-exe
                        Codegen.TigerEmit
                        Codegen.TigerInstruction
                        Tiger.TigerLanguage
+                       Codegen.TigerEnvironment
+                       Codegen.TigerSymbolTable
+                       Codegen.TigerTypeChecker
                        Utils.TigerUtils
 
 test-suite TigerCompiler-test

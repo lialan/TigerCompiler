@@ -10,6 +10,7 @@ import Tiger.TigerLanguage
 import Codegen.TigerCodegen
 import Codegen.TigerInstruction
 import Codegen.TigerEmit
+import Codegen.TigerTypeChecker
 
 process :: String -> IO ()
 process line = print $ tigerParser (scanTokens line)
