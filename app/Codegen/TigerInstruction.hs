@@ -66,3 +66,20 @@ externFunc = A.ConstantOperand . C.GlobalReference T.i64
 
 local :: A.Name -> A.Operand
 local = A.LocalReference T.i64
+
+phi :: T.Type -> [(A.Operand, A.Name)] -> A.Instruction
+phi ty incomingValues = I.Phi ty incomingValues []
+
+ifelseTest :: A.Operand -> A.Instruction
+ifelseTest cond = I.ICmp IP.NE zero cond []
+
+zero, one :: A.Operand
+zero = A.ConstantOperand $ C.Int 64 0
+one  = A.ConstantOperand $ C.Int 64 1
+
+
+nop :: A.Instruction
+nop = add zero zero
+
+increment :: A.Operand -> A.Instruction
+increment opnd = add opnd one

@@ -22,6 +22,7 @@ import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
 import Control.Monad
 import Control.Monad.State.Strict
+import Data.Foldable (toList)
 
 uniqueName :: Symbol -> Names -> (Symbol, Names)
 uniqueName nm ns =
@@ -83,13 +84,6 @@ exitSTScope = do
   st <- use $ symtab
   symtab .= tail st
 
-registerVar :: Symbol -> AST.Operand -> Codegen ()
-registerVar var x = do
-  st@(h:t) <- use symtab
-  when (st == []) $ error $ "Current symbol table is empty."
-  symtab .= [Map.insert var x h] ++ t
-
-
 -- record types in type table
 registerNewType :: Symbol -> Ty -> Codegen ()
 registerNewType nm (NameTy tyname) = do
@@ -144,8 +138,7 @@ emitTerm t = do
   bn <- use curBlkName
   modify' $ bbs . at bn ?~ set term (Just t) b
 
--- Function definitions
-
+-- definitions
 type FunctionBody = [Global.BasicBlock]
 createFuncDef :: Type.Type -> Symbol -> Arguments -> FunctionBody -> AST.Definition
 createFuncDef rt fn args body = AST.GlobalDefinition $ AST.functionDefaults {
@@ -155,6 +148,12 @@ createFuncDef rt fn args body = AST.GlobalDefinition $ AST.functionDefaults {
   Global.basicBlocks = body
 }
 
+addDefinition :: AST.Definition -> LLVM ()
+addDefinition def = do
+  definitions <- gets AST.moduleDefinitions
+  modify' $ \s -> s { AST.moduleDefinitions = [def] ++ definitions }
+
+
 -- we need a way to identify
 isFunction :: AST.Operand -> Bool
 isFunction (AST.ConstantOperand (Constant.GlobalReference (Type.FunctionType _ _ _) _)) = True
@@ -162,7 +161,6 @@ isFunction _ = False
 
 
 -- Types
-
 embeddedTypes = Map.fromList [("int", Type.i64)]
 
 lookupType :: SymbolTable -> Symbol -> Type.Type
@@ -170,4 +168,14 @@ lookupType st nm = case embeddedTypes^.at nm of
                      Just x  -> x
                      Nothing -> error $ "Custom types are not yet implemented: " ++ show nm
 
+
+-- Basic block
+toBasicBlock :: BasicBlock -> AST.BasicBlock
+toBasicBlock (BasicBlock idx insts term name) = AST.BasicBlock name (toList insts) (getTerm term)
+  where getTerm t = case t of
+          Just x  -> x
+          Nothing -> error $ "basic block has no terminator: " ++ show idx
+
+createBlocks :: CodegenState -> [AST.BasicBlock]
+createBlocks cgs = map toBasicBlock (Map.elems $ cgs^.bbs)
 

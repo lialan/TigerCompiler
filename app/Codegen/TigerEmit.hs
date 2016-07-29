@@ -13,17 +13,26 @@ import Control.Lens
 import qualified Data.Map as Map
 import Control.Applicative
 
-{-
+
+
+-- register a variable to symbol table
+registerIntVar :: Symbol -> Codegen A.Operand
+registerIntVar var = do
+  -- create memory space for symbol
+  opnd <- emitInst $ alloca T.i64
+  -- register symbol
+  st <- use symtab
+  symtab .= [Map.insert var opnd (head st)] ++ (tail st)
+  return opnd
+
 codegenProgram :: Exp -> LLVM ()
 codegenProgram e = do
-  define T.i64 "main" [] blocks
-  where
-    blocks = createBlocks $ execCodegen $ do
-      entry <- addBlock entryBlockName
-      setBlock entry
-      codegen e >>= ret
--}
-
+  let blocks = createBlocks $ execCodegen $ do
+        entry <- addBB entryBlockName
+        setBB entry
+        codegen e >>= ret
+      mainFunction = createFuncDef T.i64 "main" [] blocks
+  addDefinition mainFunction
 
 -- all integers are 64 bit at the moment...
 codegen :: Exp -> Codegen A.Operand
@@ -52,6 +61,60 @@ codegen (LetExp decs body) = do
   exitSTScope
   return result
 
+codegen (IfExp test then' (Just else')) = do
+  thenBlock <- addBB "cond_true"
+  elseBlock <- addBB "cond_false"
+  exitBlock <- addBB "cond_next"
+
+  c <- codegen test
+  test <- emitInst $ ifelseTest c
+  cbr test thenBlock elseBlock
+
+  -- then block
+  setBB thenBlock >> codegen then' >> br exitBlock
+
+  -- else block
+  setBB elseBlock >> codegen else' >> br exitBlock
+  emitInst nop
+
+codegen (IfExp test then' Nothing) = do
+  thenBlock <- addBB "cond_true"
+  exitBlock <- addBB "cond_next"
+
+  -- test
+  c <- codegen test
+  test <- emitInst $ ifelseTest c
+  cbr test thenBlock exitBlock
+
+  -- then block
+  setBB thenBlock >> codegen then' >> br exitBlock
+  emitInst nop
+
+codegen (WhileExp test body) = undefined
+
+codegen (ForExp iter _ lo hi body) = do
+  forBlock  <- addBB "for.loop"
+  exitBlock <- addBB "for.exit"
+
+  enterSTScope
+  i <- registerIntVar iter
+  emitInst =<< store <$> getvar iter <*> codegen lo
+  br forBlock
+
+  setBB forBlock
+  -- codegen body
+
+  --increment
+  newIter <- emitInst =<< increment <$> getvar iter
+  emitInst =<< store <$> getvar iter <*> pure newIter
+
+  -- condition
+  test <- emitInst =<< ne <$> getvar iter <*> codegen hi
+  cbr test forBlock exitBlock
+  exitSTScope
+  emitInst nop
+
+
 -- binary ops
 binops = Map.fromList [(PlusOp,  add),
                        (MinusOp, sub),
@@ -69,6 +132,7 @@ binops = Map.fromList [(PlusOp,  add),
 -- vars
 cgVar :: Var -> Codegen A.Operand
 cgVar (SimpleVar v) = getvar v
+-- TODO: aggregated types implementation
 cgVar (FieldVar var field) = undefined
 cgVar (SubscriptVar var idx) = undefined
 
@@ -79,8 +143,9 @@ cgDecls decList = mapM_ cgDec decList
 -- dispatch for declaration types:
 cgDec :: Dec -> Codegen ()
 cgDec (VarDec name _ ty initExp) = do
-  evaluatedExp <- codegen initExp
-  registerVar name evaluatedExp
+  -- assign value to initial value and register name to var table
+  emitInst =<< store <$> registerIntVar name <*> codegen initExp
+  return ()
 
 cgDec (TypeDec tydecs) = mapM_ cgTypeDecl tydecs
   where cgTypeDecl = uncurry registerNewType
