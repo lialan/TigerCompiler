@@ -43,7 +43,8 @@ codegen (IntExp i) = return $ A.ConstantOperand $ C.Int 64 i
 codegen (VarExp v) = emitInst =<< load <$> cgVar v
 
 codegen (OpExp lhs op rhs) = case binops^.at op of
-    Just f  -> emitInst =<< f <$> codegen lhs <*> codegen rhs
+    Just f  -> do
+                 emitInst =<< f <$> codegen lhs <*> codegen rhs
     Nothing -> error $ "unsupported operation: " ++ show op
 
 -- call
@@ -92,24 +93,30 @@ codegen (IfExp test then' Nothing) = do
   emitInst nop
 
 codegen (ForExp iter _ lo hi body) = do
+  testBlock <- addBB "for.test"
   forBlock  <- addBB "for.loop"
   exitBlock <- addBB "for.exit"
 
   enterSTScope
   registerIntVar iter
   emitInst =<< store <$> getvar iter <*> codegen lo
-  br forBlock
-
-  setBB forBlock
-  -- codegen body
-
-  --increment
-  newIter <- emitInst =<< increment <$> getvar iter
-  emitInst =<< store <$> getvar iter <*> pure newIter
+  br testBlock
 
   -- condition
-  test <- emitInst =<< ne <$> getvar iter <*> codegen hi
+  setBB testBlock
+  iter'' <- emitInst =<< load <$> getvar iter
+  test <- emitInst =<< ne <$> pure iter'' <*> codegen hi
   cbr test forBlock exitBlock
+
+  setBB forBlock >> codegen body
+
+  --increment at the end of forBlock
+  setBB forBlock
+  iter' <- emitInst =<< load <$> getvar iter
+  newIter <- emitInst $ increment iter'
+  emitInst =<< store <$> getvar iter <*> pure newIter
+  br testBlock
+
   exitSTScope
   setBB exitBlock
   emitInst nop
