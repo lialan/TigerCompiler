@@ -172,10 +172,11 @@ cgDecls decList = mapM_ cgDec decList
 
 -- dispatch for declaration types:
 cgDec :: Dec -> Codegen ()
-cgDec (VarDec name _ ty initExp) = do
+cgDec (VarDec name _ mty initExp) = do
   -- assign value to initial value and register name to var table
-  emitInst =<< store <$> registerIntVar name <*> codegen initExp
-  return ()
+  case mty of
+    Just ty -> undefined
+    Nothing -> store <$> registerIntVar name <*> codegen initExp >>= emitInst >> return ()
 
 cgDec (TypeDec tydecs) = mapM_ cgTypeDecl tydecs
   where cgTypeDecl = uncurry registerNewType
