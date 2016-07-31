@@ -14,7 +14,7 @@ import Data.Map.Lens
 
 -- Type table: Assuming there is only one scope of types
 -- report error if one type shadows the other
-type TypeTable = Map.Map Symbol Type.Type
+type TypeTable = [Map.Map Symbol Type.Type]
 
 -- symbol table
 type SymbolTable = [Map.Map Symbol AST.Operand]
@@ -39,5 +39,5 @@ emptySymbolTable :: SymbolTable
 emptySymbolTable = [Map.empty]
 
 initTypeTable :: TypeTable
-initTypeTable = Map.fromList [("int", Type.i64)]
+initTypeTable = [Map.fromList [("int", Type.i64)]]
 

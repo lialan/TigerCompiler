@@ -67,8 +67,10 @@ externFunc = A.ConstantOperand . C.GlobalReference T.i64
 local :: A.Name -> A.Operand
 local = A.LocalReference T.i64
 
-phi :: T.Type -> [(A.Operand, A.Name)] -> A.Instruction
-phi ty incomingValues = I.Phi ty incomingValues []
+-- First argument: reference to the array
+gep :: A.Operand -> A.Operand -> A.Instruction
+gep h idx = I.GetElementPtr True h [idx] []
+
 
 ifelseTest :: A.Operand -> A.Instruction
 ifelseTest cond = I.ICmp IP.NE zero cond []

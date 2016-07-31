@@ -87,15 +87,34 @@ exitSTScope = do
 -- record types in type table
 registerNewType :: Symbol -> Ty -> Codegen ()
 registerNewType nm (NameTy tyname) = do
-  tt <- use tytab
-  let ty = case tt^.at nm of
-             Just x  -> x
-             Nothing -> error $ "Wrong type: " ++ show nm
-  tytab .= Map.insert nm ty tt
+  ty <- lookupTypeTable tyname
+  insertTypeTable nm ty
 
 -- TODO: for aggregated types, we should add to global definition.
 registerNewType nm (RecordTy _) = undefined
-registerNewType nm (ArrayTy _)  = undefined
+
+registerNewType nm (ArrayTy ty)  = do
+  elemty <- getType ty
+  -- create array type
+  let aty = Type.ArrayType 0 elemty
+  insertTypeTable nm aty
+
+-- utility functiosn for type tables
+lookupTypeTable :: Symbol -> Codegen Type.Type
+lookupTypeTable sym = do
+  tt <- use tytab
+  let t = (head tt)^.at sym
+  when (isNothing t) $ error $ "Wrong type: " ++ show sym
+  return (fromJust t)
+
+insertTypeTable :: Symbol -> Type.Type -> Codegen ()
+insertTypeTable sym ty = do
+  tt <- use tytab
+  tytab .= [Map.insert sym ty (head tt)] ++ tail tt
+
+getType :: Ty -> Codegen Type.Type
+getType (NameTy tysym) = lookupTypeTable tysym
+getType _ = error $ "undefined function: getType"
 
 -- find the first occurrence from the stack.
 getvar :: Symbol -> Codegen AST.Operand

@@ -163,7 +163,8 @@ cgVar :: Var -> Codegen A.Operand
 cgVar (SimpleVar v) = getvar v
 -- TODO: aggregated types implementation
 cgVar (FieldVar var field) = undefined
-cgVar (SubscriptVar var idx) = undefined
+
+cgVar (SubscriptVar var idx) = emitInst =<< gep <$> cgVar var <*> codegen idx
 
 -- top level declaration dispatch:
 cgDecls :: [Dec] -> Codegen ()
@@ -181,13 +182,4 @@ cgDec (TypeDec tydecs) = mapM_ cgTypeDecl tydecs
 
 cgDec (FunctionDec funcdecs) = mapM_ cgFuncDec funcdecs
   where cgFuncDec (FunDec nm names rtty funBody) = undefined
-
--- Field
-cgField :: Field -> Codegen (Symbol, A.Operand)
-cgField (Field nm _ tysym) = do
-  st <- use tytab
-  let ty = case st^.at nm of
-             Just x  -> x
-             Nothing -> error $ "undefined type: " ++ show nm
-  return (nm, A.LocalReference ty (A.Name nm))
 
