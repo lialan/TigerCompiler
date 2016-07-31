@@ -45,6 +45,7 @@ data CodegenState = CodegenState {
   _tytab        :: TypeTable,
   _blockCount   :: Int,
   _count        :: Word,
+  _loopScope    :: [AST.Name],
   _names        :: Names
 } deriving Show
 
@@ -72,7 +73,7 @@ emptyCodegen = CodegenState (AST.Name entryBlockName)
                             emptyBlockTable
                             emptySymbolTable
                             initTypeTable 1 0
-                            emptyNames
+                            [] emptyNames
 
 emptyBlockTable :: Map.Map AST.Name BB
 emptyBlockTable = Map.empty
