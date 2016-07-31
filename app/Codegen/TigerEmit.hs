@@ -12,7 +12,7 @@ import qualified LLVM.General.AST.Type as T
 import Control.Lens
 import qualified Data.Map as Map
 import Control.Applicative
-
+import Control.Monad (when)
 
 
 -- register a variable to symbol table
@@ -88,16 +88,15 @@ codegen (IfExp test then' Nothing) = do
 
   -- then block
   setBB thenBlock >> codegen then' >> br exitBlock
+  setBB exitBlock
   emitInst nop
-
-codegen (WhileExp test body) = undefined
 
 codegen (ForExp iter _ lo hi body) = do
   forBlock  <- addBB "for.loop"
   exitBlock <- addBB "for.exit"
 
   enterSTScope
-  i <- registerIntVar iter
+  registerIntVar iter
   emitInst =<< store <$> getvar iter <*> codegen lo
   br forBlock
 
@@ -112,6 +111,29 @@ codegen (ForExp iter _ lo hi body) = do
   test <- emitInst =<< ne <$> getvar iter <*> codegen hi
   cbr test forBlock exitBlock
   exitSTScope
+  setBB exitBlock
+  emitInst nop
+
+codegen BreakExp = do
+  ls <- use loopScope
+  when (null ls) $ error $ "BreakExp in non-loop scope."
+  br (head ls)
+  emitInst nop
+
+codegen (WhileExp test body) = do
+  testBlock <- addBB "while.test"
+  bodyBlock <- addBB "while.body"
+  exitBlock <- addBB "while.exit"
+
+  setBB testBlock
+  t <- codegen test
+  cbr t bodyBlock exitBlock
+
+  setBB bodyBlock
+  codegen body
+  br testBlock
+
+  setBB exitBlock
   emitInst nop
 
 
