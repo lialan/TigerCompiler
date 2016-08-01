@@ -25,10 +25,10 @@ import qualified LLVM.General.ExecutionEngine as EE
 import Foreign.Ptr (FunPtr, castFunPtr)
 
 -- native function call
-foreign import ccall "dynamic" haskFun :: FunPtr (IO Double) -> (IO Double)
+foreign import ccall "dynamic" haskFun :: FunPtr (IO Int) -> (IO Int)
 
-run :: FunPtr a -> IO Double
-run fn = haskFun (castFunPtr fn :: FunPtr (IO Double))
+run :: FunPtr a -> IO Int
+run fn = haskFun (castFunPtr fn :: FunPtr (IO Int))
 
 passes :: PassSetSpec
 passes = defaultCuratedPassSetSpec { optLevel = Just 3 }
@@ -41,11 +41,12 @@ runFile = do
   let parseTree = tigerParser (scanTokens inStr)
   putStrLn "Parsed tree:"
   print parseTree
-  putStrLn "LLVM-General-pure print:"
   let codegenResult = lower2LLVMAST parseTree
-  print (show codegenResult)
   putStrLn "LLVM-General print:"
   ppModule codegenResult
+  putStrLn "JIT output:"
+  optimizedResult <- runJIT codegenResult
+  return ()
 
 dump2File :: AST.Module -> FilePath -> IO ()
 dump2File mod fn = writeFile fn (show mod)
@@ -53,9 +54,6 @@ dump2File mod fn = writeFile fn (show mod)
 
 lower2LLVMAST :: Exp -> AST.Module
 lower2LLVMAST exp = executeCodegen exp
-
-llvmAST2IR :: AST.Module -> Mod.Module
-llvmAST2IR = undefined
 
 ppModule :: AST.Module -> IO ()
 ppModule ast = do
@@ -82,9 +80,10 @@ runJIT mod = do
       runExceptT $ Mod.withModuleFromAST context mod $ \m ->
         withPassManager passes $ \pm -> do
           -- Optimization Pass
-          {-runPassManager pm m-}
+          runPassManager pm m
           optmod <- Mod.moduleAST m
           s <- Mod.moduleLLVMAssembly m
+          putStrLn "Optmized output:"
           putStrLn s
 
           EE.withModuleInEngine executionEngine m $ \ee -> do
@@ -98,10 +97,8 @@ runJIT mod = do
           -- Return the optimized module
           return optmod
 
-
-
 initModule :: AST.Module
-initModule = emptyModule "hello world!"
+initModule = emptyModule "My awesome Tiger compiler"
 
 executeCodegen :: Exp -> AST.Module
 executeCodegen exp = runLLVM initModule (codegenProgram exp)

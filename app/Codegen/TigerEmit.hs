@@ -25,6 +25,7 @@ registerIntVar var = do
   symtab .= [Map.insert var opnd (head st)] ++ (tail st)
   return opnd
 
+-- Topmost function to call
 codegenProgram :: Exp -> LLVM ()
 codegenProgram e = do
   let blocks = createBlocks $ execCodegen $ do
@@ -53,12 +54,14 @@ codegen (CallExp f args) = emitInst =<< call (externFunc (A.Name f)) <$> mapM co
 -- assign
 codegen (AssignExp var exp) = emitInst =<< store <$> cgVar var <*> codegen exp
 
-codegen (SeqExp [exps]) = undefined
+codegen (SeqExp exps) = mapM_ codegen exps >> return zero
 
 codegen (LetExp decs body) = do
   enterSTScope
+  enterTyScope
   cgDecls decs
   result <- codegen body
+  exitTyScope
   exitSTScope
   return result
 
@@ -164,6 +167,7 @@ cgVar (SimpleVar v) = getvar v
 -- TODO: aggregated types implementation
 cgVar (FieldVar var field) = undefined
 
+-- don't need to load the array header because there is only one of it and we remember it.
 cgVar (SubscriptVar var idx) = emitInst =<< gep <$> cgVar var <*> codegen idx
 
 -- top level declaration dispatch:
@@ -172,11 +176,16 @@ cgDecls decList = mapM_ cgDec decList
 
 -- dispatch for declaration types:
 cgDec :: Dec -> Codegen ()
-cgDec (VarDec name _ mty initExp) = do
+cgDec (VarDec name _ mty initExp) =
   -- assign value to initial value and register name to var table
   case mty of
-    Just ty -> undefined
-    Nothing -> store <$> registerIntVar name <*> codegen initExp >>= emitInst >> return ()
+    Just t  -> do
+                 ty <- getType t
+                 case isSimpleType ty of
+                   True  -> simpleVarDec
+                   False -> cgArray ty initExp
+    Nothing -> simpleVarDec
+    where simpleVarDec = store <$> registerIntVar name <*> codegen initExp >>= emitInst >> return ()
 
 cgDec (TypeDec tydecs) = mapM_ cgTypeDecl tydecs
   where cgTypeDecl = uncurry registerNewType
@@ -184,3 +193,13 @@ cgDec (TypeDec tydecs) = mapM_ cgTypeDecl tydecs
 cgDec (FunctionDec funcdecs) = mapM_ cgFuncDec funcdecs
   where cgFuncDec (FunDec nm names rtty funBody) = undefined
 
+
+
+cgArray :: T.Type -> Exp -> Codegen ()
+cgArray ty (ArrayExp aty' asize ainit) = do
+  -- construt array using arrlen, initval, and ty.
+  aty <- lookupTypeTable aty'
+  when (ty /= aty) $ error "Array variable declartion: type does not match."
+  return ()
+
+cgArray _ _ = error $ "cgArray called to match non-ArrayExp."

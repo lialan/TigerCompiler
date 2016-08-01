@@ -91,7 +91,7 @@ registerNewType nm (NameTy tyname) = do
   insertTypeTable nm ty
 
 -- TODO: for aggregated types, we should add to global definition.
-registerNewType nm (RecordTy _) = undefined
+registerNewType nm (RecordTy _) = error "registerNewType for RecordTy not implemented."
 
 registerNewType nm (ArrayTy ty)  = do
   elemty <- getType ty
@@ -103,6 +103,7 @@ registerNewType nm (ArrayTy ty)  = do
 lookupTypeTable :: Symbol -> Codegen Type.Type
 lookupTypeTable sym = do
   tt <- use tytab
+  when (null tt) $ error "lookupTypeTable: encounter empty TypeTable list."
   let t = (head tt)^.at sym
   when (isNothing t) $ error $ "Wrong type: " ++ show sym
   return (fromJust t)
@@ -110,6 +111,7 @@ lookupTypeTable sym = do
 insertTypeTable :: Symbol -> Type.Type -> Codegen ()
 insertTypeTable sym ty = do
   tt <- use tytab
+  when (null tt) $ error "insertTypeTable: encounter empty TypeTable list."
   tytab .= [Map.insert sym ty (head tt)] ++ tail tt
 
 getType :: Ty -> Codegen Type.Type
@@ -187,6 +189,19 @@ lookupType st nm = case embeddedTypes^.at nm of
                      Just x  -> x
                      Nothing -> error $ "Custom types are not yet implemented: " ++ show nm
 
+enterTyScope :: Codegen ()
+enterTyScope = do
+  tt <- use $ tytab
+  tytab .= [Map.empty] ++ tt
+
+exitTyScope :: Codegen ()
+exitTyScope = do
+  tt <- use $ tytab
+  tytab .= tail tt
+
+isSimpleType :: Type.Type -> Bool
+isSimpleType i64 = True
+isSimpleType _   = False
 
 -- Basic block
 toBasicBlock :: BasicBlock -> AST.BasicBlock
