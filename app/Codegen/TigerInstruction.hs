@@ -45,7 +45,7 @@ cbr cond tr fl = terminator $ I.Do $ I.CondBr cond tr fl []
 ret :: A.Operand -> Codegen (NamedTerminator)
 ret val = terminator $ I.Do $ I.Ret (Just val) []
 
-retvoid :: -> Codegen (NamedTerminator)
+retvoid :: Codegen (NamedTerminator)
 retvoid = terminator $ I.Do $ I.Ret Nothing []
 
 -- effect instructions
@@ -83,16 +83,19 @@ bitcast toTy value = I.BitCast value toTy []
 memset :: A.Type -> A.Operand
 memset ty =
   case ty of
-    i64       -> A.ConstantOperand $ C.GlobalReference (ptr T.i8) (A.Name "llvm.memset.i32")
-    otherwise -> error $ "memset function not implemented for type: " ++ show ty
+    i64 -> A.ConstantOperand $ C.GlobalReference (ptr T.i8) (A.Name "llvm.memset.i32")
+    _   -> error $ "memset function not implemented for type: " ++ show ty
 
 
 ifelseTest :: A.Operand -> A.Instruction
 ifelseTest cond = I.ICmp IP.NE zero cond []
 
+int :: Integer -> A.Operand
+int val = A.ConstantOperand $ C.Int 64 val
+
 zero, one :: A.Operand
-zero = A.ConstantOperand $ C.Int 64 0
-one  = A.ConstantOperand $ C.Int 64 1
+zero = int 0
+one  = int 1
 
 
 nop :: A.Instruction

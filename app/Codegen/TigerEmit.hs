@@ -13,7 +13,7 @@ import Control.Lens
 import qualified Data.Map as Map
 import Control.Applicative
 import Control.Monad (when)
-
+import Data.Maybe (isJust)
 
 -- register a variable to symbol table
 registerIntVar :: Symbol -> Codegen A.Operand
@@ -55,7 +55,7 @@ codegen (CallExp f args) = emitInst =<< call (externFunc (A.Name f)) <$> mapM co
 codegen (AssignExp var exp) = emitInst =<< store <$> cgVar var <*> codegen exp
 
 -- get the last exp's result as the sequence's result
-codegen (SeqExp exps) = tail (mapM codegen exps)
+codegen (SeqExp exps) = mapM_ codegen exps >> return zero
 
 codegen (LetExp decs body) = do
   enterSTScope
@@ -192,7 +192,8 @@ cgDec (TypeDec tydecs) = mapM_ cgTypeDecl tydecs
   where cgTypeDecl = uncurry registerNewType
 
 cgDec (FunctionDec funcdecs) = mapM_ cgFuncDec funcdecs
-  where cgFuncDec (FunDec nm params rtty funBody) = do
+
+cgFuncDec (FunDec nm params rtty funBody) = do
     -- register function name
     enterSTScope
     enterTyScope
@@ -201,18 +202,19 @@ cgDec (FunctionDec funcdecs) = mapM_ cgFuncDec funcdecs
     -- set up function structure
     entry <- addBB entryBlockName
     setBB entry
-    mapM_ loadParam params
+    mapM_ loadParams params
     -- duplicate params and gen body
     rt <- codegen funBody
-    emitInst =<< if isJust rtty then ret rt else retvoid
+    if isJust rtty then ret rt else retvoid
     exitTyScope
     exitSTScope
 
 loadParams :: Field -> Codegen ()
-loadParams (Field sym fty) = do
-  ty   <- lookupTypeTable fty
+loadParams (Field sym _ fty) = do
+  ty   <- getType fty
   opnd <- emitInst $ alloca ty
-  emitInst =<< store <$> ptr (getvar sym) <*> opnd
+  emitInst =<< store <$> getvar sym <*> pure opnd
+  return ()
 
 cgArray :: Symbol -> T.Type -> Exp -> Codegen ()
 cgArray aname ty (ArrayExp aty' (IntExp asize) ainit) = do
@@ -223,7 +225,8 @@ cgArray aname ty (ArrayExp aty' (IntExp asize) ainit) = do
   let elemty = getArrayElemType aty
   array <- emitInst $ allocaArray elemty (fromIntegral asize)
   -- TODO: init array
-  genMemSet array elemty asize
+  initval <- codegen ainit
+  genMemSet array elemty asize initval
   -- register type
   st <- use symtab
   symtab .= [Map.insert aname array (head st)] ++ (tail st)
@@ -231,10 +234,11 @@ cgArray aname ty (ArrayExp aty' (IntExp asize) ainit) = do
 cgArray _ _ _ = error $ "cgArray called to match non-ArrayExp."
 
 
-genMemSet :: A.Operand -> T.Type -> Integer -> Codegen ()
-genMemSet array ty size = do
+genMemSet :: A.Operand -> T.Type -> Integer -> A.Operand -> Codegen ()
+genMemSet array ty size initval = do
   aptr <- emitInst $ bitcast T.i8 array
-  emitInst $ memset array ty size
+  emitInst $ call (memset ty) [aptr, initval, int size, zero]
+  return ()
 
 getArrayElemType :: T.Type -> T.Type
 getArrayElemType (T.ArrayType _ elemType) = elemType
