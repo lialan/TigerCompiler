@@ -181,9 +181,9 @@ cgDec (VarDec name _ mty initExp) =
   case mty of
     Just t  -> do
                  ty <- getType t
-                 case isSimpleType ty of
+                 case ty == T.i64 of
                    True  -> simpleVarDec
-                   False -> cgArray ty initExp
+                   False -> cgArray name ty initExp
     Nothing -> simpleVarDec
     where simpleVarDec = store <$> registerIntVar name <*> codegen initExp >>= emitInst >> return ()
 
@@ -195,11 +195,28 @@ cgDec (FunctionDec funcdecs) = mapM_ cgFuncDec funcdecs
 
 
 
-cgArray :: T.Type -> Exp -> Codegen ()
-cgArray ty (ArrayExp aty' asize ainit) = do
-  -- construt array using arrlen, initval, and ty.
+cgArray :: Symbol -> T.Type -> Exp -> Codegen ()
+cgArray aname ty (ArrayExp aty' (IntExp asize) ainit) = do
+  -- type check
   aty <- lookupTypeTable aty'
   when (ty /= aty) $ error "Array variable declartion: type does not match."
-  return ()
+  -- construt array using arrlen, initval, and ty.
+  let elemty = getArrayElemType aty
+  array <- emitInst $ allocaArray elemty (fromIntegral asize)
+  -- TODO: init array
+  genMemSet array elemty asize
+  -- register type
+  st <- use symtab
+  symtab .= [Map.insert aname array (head st)] ++ (tail st)
 
-cgArray _ _ = error $ "cgArray called to match non-ArrayExp."
+cgArray _ _ _ = error $ "cgArray called to match non-ArrayExp."
+
+
+genMemSet :: A.Operand -> T.Type -> Integer -> Codegen ()
+genMemSet array ty size = do
+  aptr <- emitInst $ bitcast T.i8 array
+  emitInst $ memset array ty size
+
+getArrayElemType :: T.Type -> T.Type
+getArrayElemType (T.ArrayType _ elemType) = elemType
+getArrayElemType _ = error $ "getArrayElemType applied to non ArrayType."

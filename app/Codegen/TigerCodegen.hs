@@ -103,10 +103,15 @@ registerNewType nm (ArrayTy ty)  = do
 lookupTypeTable :: Symbol -> Codegen Type.Type
 lookupTypeTable sym = do
   tt <- use tytab
-  when (null tt) $ error "lookupTypeTable: encounter empty TypeTable list."
+  lookupTypeTableHelper sym tt
+
+lookupTypeTableHelper :: Symbol -> TypeTable -> Codegen Type.Type
+lookupTypeTableHelper sym tt = do
+  when (null tt) $ do error $ "lookupTypeTable: cannot find symbol: " ++ show sym
   let t = (head tt)^.at sym
-  when (isNothing t) $ error $ "Wrong type: " ++ show sym
-  return (fromJust t)
+  if isNothing t
+  then lookupTypeTableHelper sym (tail tt)
+  else return (fromJust t)
 
 insertTypeTable :: Symbol -> Type.Type -> Codegen ()
 insertTypeTable sym ty = do

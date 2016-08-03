@@ -54,6 +54,9 @@ call fn args = I.Call Nothing CC.C [] (Right fn) (toArgs args) [] []
 alloca :: A.Type -> A.Instruction
 alloca ty = I.Alloca ty Nothing 0 []
 
+allocaArray :: A.Type -> Integer -> A.Instruction
+allocaArray ty arlen = I.Alloca ty (Just (A.ConstantOperand (C.Int 32 arlen))) 0 []
+
 store :: A.Operand -> A.Operand -> A.Instruction
 store ptr val = I.Store False ptr val Nothing 0 []
 
@@ -70,6 +73,16 @@ local = A.LocalReference T.i64
 -- First argument: reference to the array
 gep :: A.Operand -> A.Operand -> A.Instruction
 gep h idx = I.GetElementPtr True h [idx] []
+
+bitcast :: A.Type -> A.Operand -> A.Instruction
+bitcast toTy value = I.BitCast value toTy []
+
+
+memset :: A.Type -> A.Operand
+memset ty =
+  case ty of
+    i64       -> A.ConstantOperand $ C.GlobalReference (ptr T.i8) (A.Name "llvm.memset.i32")
+    otherwise -> error $ "memset function not implemented for type: " ++ show ty
 
 
 ifelseTest :: A.Operand -> A.Instruction
