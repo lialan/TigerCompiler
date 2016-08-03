@@ -109,7 +109,7 @@ record_create_list
   : {- empty -}                             { [] }
   | record_create_field                     { [$1] }
   | record_create_list "," record_create_field
-                                            { $3 : $1 }
+                                            { $1 ++ [$3] }
 record_create_field
   : ident "=" exp                           { ($1, $3) }
 
@@ -118,7 +118,7 @@ array_create
 
 decs
   : {- empty -}                             { [] }
-  | decs dec                                { $2 : $1 }
+  | decs dec                                { $1 ++ [$2] }
 
 dec
   : tydeclist                               { TypeDec $1 }
@@ -130,7 +130,7 @@ tydec
 
 tydeclist
   : tydec                                   { [$1] }
-  | tydeclist tydec                         { $2 : $1 }
+  | tydeclist tydec                         { $1 ++ [$2] }
 
 vardec
   : "var" ident ":=" exp                    { VarDec $2 True Nothing $4 }
@@ -138,7 +138,7 @@ vardec
 
 fundeclist
   : {- empty -}                             { [] }
-  | fundeclist fundec                       { $2 : $1 }
+  | fundeclist fundec                       { $1 ++ [$2] }
 
 fundec
   : "function" ident "(" tyfields ")" "=" exp
@@ -157,16 +157,16 @@ tyfield
 tyfields
   : {- empty -}                             { [] }
   | tyfield                                 { [$1] }
-  | tyfields "," tyfield                    { $3 : $1 }
+  | tyfields "," tyfield                    { $1 ++ [$3] }
 
 expseq
   : exp                                     { [$1] }
-  | expseq ";" exp                          { $3 : $1 }
+  | expseq ";" exp                          { $1 ++ [$3] }
 
 explist
   : {- empty -}                             { [] }
   | exp                                     { [$1] }
-  | explist "," exp                         { $3 : $1 }
+  | explist "," exp                         { $1 ++ [$3] }
 
 lvalue
  : ident                                    { SimpleVar $1 }
