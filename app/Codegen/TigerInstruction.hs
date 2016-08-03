@@ -45,6 +45,8 @@ cbr cond tr fl = terminator $ I.Do $ I.CondBr cond tr fl []
 ret :: A.Operand -> Codegen (NamedTerminator)
 ret val = terminator $ I.Do $ I.Ret (Just val) []
 
+retvoid :: -> Codegen (NamedTerminator)
+retvoid = terminator $ I.Do $ I.Ret Nothing []
 
 -- effect instructions
 call :: A.Operand -> [A.Operand] -> A.Instruction

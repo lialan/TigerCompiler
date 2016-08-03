@@ -54,7 +54,8 @@ codegen (CallExp f args) = emitInst =<< call (externFunc (A.Name f)) <$> mapM co
 -- assign
 codegen (AssignExp var exp) = emitInst =<< store <$> cgVar var <*> codegen exp
 
-codegen (SeqExp exps) = mapM_ codegen exps >> return zero
+-- get the last exp's result as the sequence's result
+codegen (SeqExp exps) = tail (mapM codegen exps)
 
 codegen (LetExp decs body) = do
   enterSTScope
@@ -191,9 +192,27 @@ cgDec (TypeDec tydecs) = mapM_ cgTypeDecl tydecs
   where cgTypeDecl = uncurry registerNewType
 
 cgDec (FunctionDec funcdecs) = mapM_ cgFuncDec funcdecs
-  where cgFuncDec (FunDec nm names rtty funBody) = undefined
+  where cgFuncDec (FunDec nm params rtty funBody) = do
+    -- register function name
+    enterSTScope
+    enterTyScope
+    -- push formal params to symbol table
 
+    -- set up function structure
+    entry <- addBB entryBlockName
+    setBB entry
+    mapM_ loadParam params
+    -- duplicate params and gen body
+    rt <- codegen funBody
+    emitInst =<< if isJust rtty then ret rt else retvoid
+    exitTyScope
+    exitSTScope
 
+loadParams :: Field -> Codegen ()
+loadParams (Field sym fty) = do
+  ty   <- lookupTypeTable fty
+  opnd <- emitInst $ alloca ty
+  emitInst =<< store <$> ptr (getvar sym) <*> opnd
 
 cgArray :: Symbol -> T.Type -> Exp -> Codegen ()
 cgArray aname ty (ArrayExp aty' (IntExp asize) ainit) = do
