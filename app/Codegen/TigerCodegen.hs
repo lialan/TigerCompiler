@@ -37,8 +37,8 @@ runLLVM = flip (execState . unLLVM)
 emptyModule :: Symbol -> AST.Module
 emptyModule label = AST.defaultModule { AST.moduleName = label }
 
-execCodegen :: Codegen a -> CodegenState
-execCodegen mcg = execState (runCodegen mcg) emptyCodegen
+execCodegen :: CodegenState -> Codegen a -> CodegenState
+execCodegen cgs mcg = execState (runCodegen mcg) cgs
 
 nextCount :: Codegen Word
 nextCount = count += 1 >> use count

@@ -13,7 +13,7 @@ import Control.Lens
 import qualified Data.Map as Map
 import Control.Applicative
 import Control.Monad (when)
-import Data.Maybe (isJust)
+import Data.Maybe (isJust, fromJust)
 
 -- register a variable to symbol table
 registerIntVar :: Symbol -> Codegen A.Operand
@@ -28,12 +28,29 @@ registerIntVar var = do
 -- Topmost function to call
 codegenProgram :: Exp -> LLVM ()
 codegenProgram e = do
-  let blocks = createBlocks $ execCodegen $ do
+  let cgs = execCodegen emptyCodegen $ do
         entry <- addBB entryBlockName
         setBB entry
         codegen e >>= ret
+      blocks = createBlocks cgs
       mainFunction = createFuncDef T.i64 "main" [] blocks
   addDefinition mainFunction
+
+
+codegenFunction :: FunDec -> Codegen A.Definition
+codegenFunction fd@(FunDec nm params rtty funBody) = do
+  st <- use symtab
+  tt <- use tytab
+  let ncg = newCodegen st tt
+  let fcg = execCodegen ncg $ do
+        entry <- addBB entryBlockName
+        setBB entry
+        cgFuncDec fd
+      blocks = createBlocks fcg
+      rty = _returnType fcg
+      ty = if isJust rty then fromJust rty else T.void
+  return $ createFuncDef ty nm [] blocks
+
 
 -- all integers are 64 bit at the moment...
 codegen :: Exp -> Codegen A.Operand
@@ -208,6 +225,7 @@ cgFuncDec (FunDec nm params rtty funBody) = do
     if isJust rtty then ret rt else retvoid
     exitTyScope
     exitSTScope
+    -- add to Function definition (or should we add it first?)
 
 loadParams :: Field -> Codegen ()
 loadParams (Field sym _ fty) = do
