@@ -17,13 +17,17 @@ import Data.Maybe (isJust, fromJust)
 
 -- register a variable to symbol table
 registerIntVar :: Symbol -> Codegen A.Operand
-registerIntVar var = do
+registerIntVar var = registerVar var T.i64
+
+registerVar :: Symbol -> T.Type -> Codegen A.Operand
+registerVar var ty = do
   -- create memory space for symbol
-  opnd <- emitInst $ alloca T.i64
+  opnd <- emitInst $ alloca ty
   -- register symbol
   st <- use symtab
   symtab .= [Map.insert var opnd (head st)] ++ (tail st)
   return opnd
+
 
 -- Topmost function to call
 codegenProgram :: Exp -> LLVM ()
@@ -34,10 +38,10 @@ codegenProgram e = do
         codegen e >>= ret
       blocks = createBlocks cgs
       mainFunction = createFuncDef T.i64 "main" [] blocks
-  addDefinition mainFunction
+      defList = [mainFunction] ++ cgs^.funcDefs
+  mapM_ addDefinition defList
 
-
-codegenFunction :: FunDec -> Codegen A.Definition
+codegenFunction :: FunDec -> Codegen ()
 codegenFunction fd@(FunDec nm params rtty funBody) = do
   st <- use symtab
   tt <- use tytab
@@ -47,10 +51,12 @@ codegenFunction fd@(FunDec nm params rtty funBody) = do
         setBB entry
         cgFuncDec fd
       blocks = createBlocks fcg
-      rty = _returnType fcg
+      rty = fcg^.returnType
       ty = if isJust rty then fromJust rty else T.void
-  return $ createFuncDef ty nm [] blocks
-
+      f = createFuncDef ty nm [] blocks
+      fds = [f] ++ fcg^.funcDefs
+  fdlist <- use funcDefs
+  funcDefs .= fds ++ fdlist
 
 -- all integers are 64 bit at the moment...
 codegen :: Exp -> Codegen A.Operand
@@ -208,30 +214,31 @@ cgDec (VarDec name _ mty initExp) =
 cgDec (TypeDec tydecs) = mapM_ cgTypeDecl tydecs
   where cgTypeDecl = uncurry registerNewType
 
-cgDec (FunctionDec funcdecs) = mapM_ cgFuncDec funcdecs
+cgDec (FunctionDec funcdecs) = mapM_ codegenFunction funcdecs
 
+cgFuncDec :: FunDec -> Codegen ()
 cgFuncDec (FunDec nm params rtty funBody) = do
     -- register function name
     enterSTScope
     enterTyScope
-    -- push formal params to symbol table
-
-    -- set up function structure
     entry <- addBB entryBlockName
     setBB entry
-    mapM_ loadParams params
+    -- push formal params to symbol table and set up function structure
+    mapM_ loadParam params
     -- duplicate params and gen body
     rt <- codegen funBody
     if isJust rtty then ret rt else retvoid
     exitTyScope
     exitSTScope
-    -- add to Function definition (or should we add it first?)
 
-loadParams :: Field -> Codegen ()
-loadParams (Field sym _ fty) = do
+loadParam :: Field -> Codegen ()
+loadParam (Field sym _ fty) = do
   ty   <- getType fty
-  opnd <- emitInst $ alloca ty
-  emitInst =<< store <$> getvar sym <*> pure opnd
+  -- dupliate formal argument, and register to symtab
+  origVar <- getvar sym
+  opnd  <- registerVar sym ty
+  -- use different variable:  
+  emitInst $ store origVar opnd
   return ()
 
 cgArray :: Symbol -> T.Type -> Exp -> Codegen ()

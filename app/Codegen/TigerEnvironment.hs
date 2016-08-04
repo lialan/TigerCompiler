@@ -47,6 +47,7 @@ data CodegenState = CodegenState {
   _count        :: Word,
   _loopScope    :: [AST.Name],
   _returnType   :: Maybe Type.Type,
+  _funcDefs     :: [AST.Definition],
   _names        :: Names
 } deriving Show
 
@@ -74,7 +75,7 @@ emptyCodegen = CodegenState (AST.Name entryBlockName)
                             emptyBlockTable
                             emptySymbolTable
                             initTypeTable 1 0
-                            [] (Just Type.i64) emptyNames
+                            [] (Just Type.i64) [] emptyNames
 
 emptyBlockTable :: Map.Map AST.Name BB
 emptyBlockTable = Map.empty
@@ -85,4 +86,4 @@ emptyBlock i name = BasicBlock i Seq.empty Nothing name
 newCodegen :: SymbolTable -> TypeTable -> CodegenState
 newCodegen st tt = CodegenState (AST.Name entryBlockName)
                                 emptyBlockTable
-                                st tt 1 0 [] Nothing emptyNames
+                                st tt 1 0 [] Nothing [] emptyNames
