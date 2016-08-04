@@ -74,15 +74,23 @@ currentBB = do
 
 
 -- Symbol Table
-enterSTScope :: Codegen ()
-enterSTScope = do
-  st <- use $ symtab
+enterDefScope :: Codegen ()
+enterDefScope = do
+  st <- use symtab
   symtab .= [Map.empty] ++ st
+  tt <- use tytab
+  tytab .= [Map.empty] ++ tt
+  ft <- use functab
+  functab .= [Map.empty] ++ ft
 
-exitSTScope :: Codegen ()
-exitSTScope = do
-  st <- use $ symtab
+exitDefScope :: Codegen ()
+exitDefScope = do
+  st <- use symtab
   symtab .= tail st
+  tt <- use tytab
+  tytab .= tail tt
+  ft <- use functab
+  functab .= tail ft
 
 -- record types in type table
 registerNewType :: Symbol -> Ty -> Codegen ()
@@ -103,14 +111,19 @@ registerNewType nm (ArrayTy ty)  = do
 lookupTypeTable :: Symbol -> Codegen Type.Type
 lookupTypeTable sym = do
   tt <- use tytab
-  lookupTypeTableHelper sym tt
+  lookupTableHelper sym tt
 
-lookupTypeTableHelper :: Symbol -> TypeTable -> Codegen Type.Type
-lookupTypeTableHelper sym tt = do
+lookupFuncTable :: Symbol -> Codegen Type.Type
+lookupFuncTable sym = do
+  ft <- use functab
+  lookupTableHelper sym ft
+
+lookupTableHelper :: Symbol -> [Map.Map Symbol a] -> Codegen a
+lookupTableHelper sym tt = do
   when (null tt) $ do error $ "lookupTypeTable: cannot find symbol: " ++ show sym
   let t = (head tt)^.at sym
   if isNothing t
-  then lookupTypeTableHelper sym (tail tt)
+  then lookupTableHelper sym (tail tt)
   else return (fromJust t)
 
 insertTypeTable :: Symbol -> Type.Type -> Codegen ()
@@ -200,16 +213,6 @@ lookupType :: SymbolTable -> Symbol -> Type.Type
 lookupType st nm = case embeddedTypes^.at nm of
                      Just x  -> x
                      Nothing -> error $ "Custom types are not yet implemented: " ++ show nm
-
-enterTyScope :: Codegen ()
-enterTyScope = do
-  tt <- use $ tytab
-  tytab .= [Map.empty] ++ tt
-
-exitTyScope :: Codegen ()
-exitTyScope = do
-  tt <- use $ tytab
-  tytab .= tail tt
 
 isSimpleType :: Type.Type -> Bool
 isSimpleType i64 = True

@@ -41,3 +41,5 @@ emptySymbolTable = [Map.empty]
 initTypeTable :: TypeTable
 initTypeTable = [Map.fromList [("int", Type.i64)]]
 
+-- Function Table
+type FuncTable = [Map.Map Symbol Type.Type]

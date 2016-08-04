@@ -4,7 +4,7 @@ import Tiger.TigerLanguage
 import Codegen.TigerEnvironment
 import Codegen.TigerCodegen
 import Codegen.TigerInstruction
-import Codegen.TigerIntrnisics
+--import Codegen.TigerIntrinisics
 
 import qualified LLVM.General.AST as A
 import qualified LLVM.General.AST.Constant as C
@@ -14,7 +14,7 @@ import Control.Lens
 import qualified Data.Map as Map
 import Control.Applicative
 import Control.Monad (when)
-import Data.Maybe (isJust, fromJust)
+import Data.Maybe (isJust, fromJust, fromMaybe)
 
 -- register a variable to symbol table
 registerIntVar :: Symbol -> Codegen A.Operand
@@ -42,22 +42,46 @@ codegenProgram e = do
       defList = [mainFunction] ++ cgs^.funcDefs
   mapM_ addDefinition defList
 
+-- codegen function
 codegenFunction :: FunDec -> Codegen ()
 codegenFunction fd@(FunDec nm params rtty funBody) = do
   st <- use symtab
   tt <- use tytab
-  let ncg = newCodegen st tt
-  let fcg = execCodegen ncg $ do
+  ft <- use functab
+  rty <- if isJust rtty then getType (fromJust rtty) else return T.void
+  functab .= [Map.insert nm rty (head ft)] ++ tail ft
+  fps <- mapM constructFormal params
+  let fcg = execCodegen (newCodegen st tt ft) $ do
         entry <- addBB entryBlockName
         setBB entry
-        cgFuncDec fd
-      blocks = createBlocks fcg
-      rty = fcg^.returnType
-      ty = if isJust rty then fromJust rty else T.void
-      f = createFuncDef ty nm [] blocks
+        -- push formal params to symbol table and set up function structure
+        mapM_ loadParam params
+        -- duplicate params and gen body
+        rt <- codegen funBody
+        if isJust rtty then ret rt else retvoid
+      f = createFuncDef rty nm fps (createBlocks fcg)
       fds = [f] ++ fcg^.funcDefs
   fdlist <- use funcDefs
   funcDefs .= fds ++ fdlist
+
+constructFormal :: Field -> Codegen (T.Type, A.Name)
+constructFormal (Field sym _ ty) = do
+  aty <- getType ty
+  return $ (aty, A.Name sym)
+
+
+loadParam :: Field -> Codegen ()
+loadParam fd@(Field sym _ fty) = do
+  ty   <- getType fty
+  -- dupliate formal argument, and register to symtab
+  st <- use symtab
+  opnd <- emitInst $ alloca ty
+  symtab .= [Map.insert sym opnd (head st)] ++ (tail st)
+  let origVar = A.LocalReference ty (A.Name sym)
+  emitInst $ store opnd origVar
+  return ()
+-- end of codegen function
+
 
 -- all integers are 64 bit at the moment...
 codegen :: Exp -> Codegen A.Operand
@@ -68,12 +92,13 @@ codegen (IntExp i) = return $ A.ConstantOperand $ C.Int 64 i
 codegen (VarExp v) = emitInst =<< load <$> cgVar v
 
 codegen (OpExp lhs op rhs) = case binops^.at op of
-    Just f  -> do
-                 emitInst =<< f <$> codegen lhs <*> codegen rhs
+    Just f  -> emitInst =<< f <$> codegen lhs <*> codegen rhs
     Nothing -> error $ "unsupported operation: " ++ show op
 
 -- call
-codegen (CallExp f args) = emitInst =<< call (externFunc (A.Name f)) <$> mapM codegen args
+codegen (CallExp f args) = do
+  ty <- lookupFuncTable f
+  emitInst =<< call (externFunc (A.Name f)) <$> mapM codegen args
 
 -- assign
 codegen (AssignExp var exp) = emitInst =<< store <$> cgVar var <*> codegen exp
@@ -82,12 +107,10 @@ codegen (AssignExp var exp) = emitInst =<< store <$> cgVar var <*> codegen exp
 codegen (SeqExp exps) = mapM_ codegen exps >> return zero
 
 codegen (LetExp decs body) = do
-  enterSTScope
-  enterTyScope
+  enterDefScope
   cgDecls decs
   result <- codegen body
-  exitTyScope
-  exitSTScope
+  exitDefScope
   return result
 
 codegen (IfExp test then' (Just else')) = do
@@ -125,7 +148,7 @@ codegen (ForExp iter _ lo hi body) = do
   forBlock  <- addBB "for.loop"
   exitBlock <- addBB "for.exit"
 
-  enterSTScope
+  enterDefScope
   registerIntVar iter
   emitInst =<< store <$> getvar iter <*> codegen lo
   br testBlock
@@ -145,7 +168,7 @@ codegen (ForExp iter _ lo hi body) = do
   emitInst =<< store <$> getvar iter <*> pure newIter
   br testBlock
 
-  exitSTScope
+  exitDefScope
   setBB exitBlock
   emitInst nop
 
@@ -217,30 +240,7 @@ cgDec (TypeDec tydecs) = mapM_ cgTypeDecl tydecs
 
 cgDec (FunctionDec funcdecs) = mapM_ codegenFunction funcdecs
 
-cgFuncDec :: FunDec -> Codegen ()
-cgFuncDec (FunDec nm params rtty funBody) = do
-    -- register function name
-    enterSTScope
-    enterTyScope
-    entry <- addBB entryBlockName
-    setBB entry
-    -- push formal params to symbol table and set up function structure
-    mapM_ loadParam params
-    -- duplicate params and gen body
-    rt <- codegen funBody
-    if isJust rtty then ret rt else retvoid
-    exitTyScope
-    exitSTScope
 
-loadParam :: Field -> Codegen ()
-loadParam (Field sym _ fty) = do
-  ty   <- getType fty
-  -- dupliate formal argument, and register to symtab
-  origVar <- getvar sym
-  opnd  <- registerVar sym ty
-  -- use different variable:  
-  emitInst $ store origVar opnd
-  return ()
 
 cgArray :: Symbol -> T.Type -> Exp -> Codegen ()
 cgArray aname ty (ArrayExp aty' (IntExp asize) ainit) = do
@@ -252,7 +252,7 @@ cgArray aname ty (ArrayExp aty' (IntExp asize) ainit) = do
   array <- emitInst $ allocaArray elemty (fromIntegral asize)
   -- TODO: init array
   initval <- codegen ainit
-  genMemSet array elemty asize initval
+  --genMemSet array elemty asize initval
   -- register type
   st <- use symtab
   symtab .= [Map.insert aname array (head st)] ++ (tail st)

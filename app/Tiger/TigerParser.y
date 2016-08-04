@@ -170,8 +170,8 @@ explist
 
 lvalue
  : ident                                    { SimpleVar $1 }
- | ident "(" exp ")"                        { SubscriptVar (SimpleVar $1) $3 }
- | lvalue "(" exp ")"                       { SubscriptVar $1 $3 }
+ | ident "[" exp "]"                        { SubscriptVar (SimpleVar $1) $3 }
+ | lvalue "[" exp "]"                       { SubscriptVar $1 $3 }
  | lvalue "." ident                         { FieldVar $1 $3 }
 
 {

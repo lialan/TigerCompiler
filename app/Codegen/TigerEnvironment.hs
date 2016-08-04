@@ -46,7 +46,7 @@ data CodegenState = CodegenState {
   _blockCount   :: Int,
   _count        :: Word,
   _loopScope    :: [AST.Name],
-  _returnType   :: Maybe Type.Type,
+  _functab      :: FuncTable,
   _funcDefs     :: [AST.Definition],
   _names        :: Names
 } deriving Show
@@ -75,15 +75,18 @@ emptyCodegen = CodegenState (AST.Name entryBlockName)
                             emptyBlockTable
                             emptySymbolTable
                             initTypeTable 1 0
-                            [] (Just Type.i64) [] emptyNames
+                            [] emptyFuncTable [] emptyNames
 
 emptyBlockTable :: Map.Map AST.Name BB
 emptyBlockTable = Map.empty
 
+emptyFuncTable :: FuncTable
+emptyFuncTable = [Map.fromList [("llvm.memset.i32", Type.i64)]]
+
 emptyBlock :: Int -> AST.Name -> BB
 emptyBlock i name = BasicBlock i Seq.empty Nothing name
 
-newCodegen :: SymbolTable -> TypeTable -> CodegenState
-newCodegen st tt = CodegenState (AST.Name entryBlockName)
-                                emptyBlockTable
-                                st tt 1 0 [] Nothing [] emptyNames
+newCodegen :: SymbolTable -> TypeTable -> FuncTable -> CodegenState
+newCodegen st tt ft = CodegenState (AST.Name entryBlockName)
+                                    emptyBlockTable
+                                    st tt 1 0 [] ft [] emptyNames
