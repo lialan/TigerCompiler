@@ -83,7 +83,7 @@ bitcast toTy value = I.BitCast value toTy []
 memset :: A.Type -> A.Operand
 memset ty =
   case ty of
-    i64 -> A.ConstantOperand $ C.GlobalReference (ptr T.i8) (A.Name "llvm.memset.i32")
+    i64 -> A.ConstantOperand $ C.GlobalReference (ptr T.i8) (A.Name "llvm.memset.p0i8.i32")
     _   -> error $ "memset function not implemented for type: " ++ show ty
 
 

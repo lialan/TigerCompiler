@@ -4,7 +4,7 @@ import Tiger.TigerLanguage
 import Codegen.TigerEnvironment
 import Codegen.TigerCodegen
 import Codegen.TigerInstruction
---import Codegen.TigerIntrinisics
+import Codegen.TigerIntrinsics
 
 import qualified LLVM.General.AST as A
 import qualified LLVM.General.AST.Constant as C
@@ -40,8 +40,7 @@ codegenProgram e = do
       blocks = createBlocks cgs
       mainFunction = createFuncDef T.i64 "main" [] blocks
       defList = [mainFunction] ++ cgs^.funcDefs
-  mapM_ addDefinition intrinsics
-  mapM_ addDefinition defList
+  mapM_ addDefinition (intrinsics ++ defList)
 
 -- codegen function
 codegenFunction :: FunDec -> Codegen ()
@@ -253,7 +252,7 @@ cgArray aname ty (ArrayExp aty' (IntExp asize) ainit) = do
   array <- emitInst $ allocaArray elemty (fromIntegral asize)
   -- TODO: init array
   initval <- codegen ainit
-  --genMemSet array elemty asize initval
+  genMemSet array elemty asize initval
   -- register type
   st <- use symtab
   symtab .= [Map.insert aname array (head st)] ++ (tail st)
