@@ -40,6 +40,7 @@ codegenProgram e = do
       blocks = createBlocks cgs
       mainFunction = createFuncDef T.i64 "main" [] blocks
       defList = [mainFunction] ++ cgs^.funcDefs
+  mapM_ addDefinition intrinsics
   mapM_ addDefinition defList
 
 -- codegen function
