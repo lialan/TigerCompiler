@@ -179,6 +179,13 @@ addDefinition def = do
   definitions <- gets AST.moduleDefinitions
   modify' $ \s -> s { AST.moduleDefinitions = [def] ++ definitions }
 
+createExternFuncDef :: Type.Type -> Symbol -> [AST.Parameter] -> AST.Definition
+createExternFuncDef rt fn args = AST.GlobalDefinition $ AST.functionDefaults {
+  Global.name        = AST.Name fn,
+  Global.parameters  = (args, False),
+  Global.returnType  = rt,
+  Global.basicBlocks = []
+}
 
 -- we need a way to identify
 isFunction :: AST.Operand -> Bool

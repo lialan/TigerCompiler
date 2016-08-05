@@ -4,6 +4,7 @@ import Tiger.TigerLanguage
 import Codegen.TigerEnvironment
 import Codegen.TigerCodegen
 import Codegen.TigerInstruction
+import Codegen.TigerIntrnisics
 
 import qualified LLVM.General.AST as A
 import qualified LLVM.General.AST.Constant as C
