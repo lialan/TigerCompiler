@@ -248,24 +248,16 @@ cgArray aname ty (ArrayExp aty' (IntExp asize) ainit) = do
   aty <- lookupTypeTable aty'
   when (ty /= aty) $ error "Array variable declartion: type does not match."
   -- construt array using arrlen, initval, and ty.
-  let elemty = getArrayElemType aty
+  let getArrayElemType (T.ArrayType _ elemType) = elemType
+      elemty = getArrayElemType aty
   array <- emitInst $ allocaArray elemty (fromIntegral asize)
   -- TODO: init array
   initval <- codegen ainit
-  genMemSet array elemty asize initval
+  aptr <- emitInst $ bitcast (T.ptr T.i8) array
+  emitInst $ call (memset elemty) [aptr, i8zero, int asize, int32 16, i1false]
   -- register type
   st <- use symtab
   symtab .= [Map.insert aname array (head st)] ++ (tail st)
 
 cgArray _ _ _ = error $ "cgArray called to match non-ArrayExp."
 
-
-genMemSet :: A.Operand -> T.Type -> Integer -> A.Operand -> Codegen ()
-genMemSet array ty size initval = do
-  aptr <- emitInst $ bitcast T.i8 array
-  emitInst $ call (memset ty) [aptr, initval, int size, zero]
-  return ()
-
-getArrayElemType :: T.Type -> T.Type
-getArrayElemType (T.ArrayType _ elemType) = elemType
-getArrayElemType _ = error $ "getArrayElemType applied to non ArrayType."
