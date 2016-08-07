@@ -81,7 +81,12 @@ emptyBlockTable :: Map.Map AST.Name BB
 emptyBlockTable = Map.empty
 
 emptyFuncTable :: FuncTable
-emptyFuncTable = [Map.fromList [("llvm.memset.i32", Type.i64)]]
+emptyFuncTable = [
+                  Map.fromList [ 
+                                ("llvm.memset.i32", Type.void),
+                                ("printf", Type.i32)
+                               ]
+                 ]
 
 emptyBlock :: Int -> AST.Name -> BB
 emptyBlock i name = BasicBlock i Seq.empty Nothing name

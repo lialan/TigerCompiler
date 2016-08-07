@@ -10,6 +10,7 @@ import qualified LLVM.General.AST as AST
 import qualified LLVM.General.AST.Type as Type
 import qualified LLVM.General.AST.Global as Global
 import qualified LLVM.General.AST.Constant as Constant
+import qualified LLVM.General.AST.Linkage as Linkage
 
 -- states and monads
 import Control.Applicative
@@ -23,6 +24,9 @@ import qualified Data.Sequence as Seq
 import Control.Monad
 import Control.Monad.State.Strict
 import Data.Foldable (toList)
+import qualified Data.List as List (sortBy)
+import Data.Function (on)
+import Data.Char (ord)
 
 uniqueName :: Symbol -> Names -> (Symbol, Names)
 uniqueName nm ns =
@@ -60,9 +64,9 @@ insertInstruction inst = undefined
 
 -- References
 
--- variables, they are all 64bits.
+-- variables, they are all 32 bits.
 local :: AST.Name -> AST.Operand
-local = AST.LocalReference Type.i64
+local = AST.LocalReference Type.i32
 
 currentBB :: Codegen BB
 currentBB = do
@@ -200,6 +204,24 @@ createExternFuncDef rt fn args = AST.GlobalDefinition $ AST.functionDefaults {
   Global.basicBlocks = []
 }
 
+createVarExternFuncDef :: Type.Type -> Symbol -> [AST.Parameter] -> AST.Definition
+createVarExternFuncDef rt fn args = AST.GlobalDefinition $ AST.functionDefaults {
+  Global.name        = AST.Name fn,
+  Global.parameters  = (args, True),
+  Global.returnType  = rt,
+  Global.basicBlocks = []
+}
+
+createStringDef :: Symbol -> String -> AST.Definition
+createStringDef name val = AST.GlobalDefinition $ AST.globalVariableDefaults {
+  Global.name        = AST.Name name,
+  Global.linkage     = Linkage.Private,
+  Global.isConstant  = True,
+  Global.type'       = Type.ArrayType (fromIntegral $ length val) Type.i8,
+  Global.initializer = Just (Constant.Array Type.i8 (fmap (\c -> Constant.Int 8 (fromIntegral $ ord c)) val))
+}
+
+
 -- we need a way to identify
 isFunction :: AST.Operand -> Bool
 isFunction (AST.ConstantOperand (Constant.GlobalReference (Type.FunctionType _ _ _) _)) = True
@@ -207,7 +229,7 @@ isFunction _ = False
 
 
 -- Types
-embeddedTypes = Map.fromList [("int", Type.i64)]
+embeddedTypes = Map.fromList [("int", Type.i32)]
 
 lookupType :: SymbolTable -> Symbol -> Type.Type
 lookupType st nm = case embeddedTypes^.at nm of
@@ -215,16 +237,19 @@ lookupType st nm = case embeddedTypes^.at nm of
                      Nothing -> error $ "Custom types are not yet implemented: " ++ show nm
 
 isSimpleType :: Type.Type -> Bool
-isSimpleType i64 = True
+isSimpleType i32 = True
 isSimpleType _   = False
 
 -- Basic block
-toBasicBlock :: BasicBlock -> AST.BasicBlock
-toBasicBlock (BasicBlock idx insts term name) = AST.BasicBlock name (toList insts) (getTerm term)
+toBasicBlock :: (AST.Name, BasicBlock) -> AST.BasicBlock
+toBasicBlock (_, BasicBlock idx insts term name) = AST.BasicBlock name (toList insts) (getTerm term)
   where getTerm t = case t of
           Just x  -> x
           Nothing -> error $ "basic block has no terminator: " ++ show idx
 
+sortBlocks :: [(AST.Name, BasicBlock)] ->  [(AST.Name, BasicBlock)]
+sortBlocks = List.sortBy (compare `on` (_idx . snd))
+
 createBlocks :: CodegenState -> [AST.BasicBlock]
-createBlocks cgs = map toBasicBlock (Map.elems $ cgs^.bbs)
+createBlocks cgs = map toBasicBlock (sortBlocks $ Map.toList $ cgs^.bbs)
 

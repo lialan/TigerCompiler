@@ -7,6 +7,7 @@ import Tiger.TigerLanguage
 
 import qualified LLVM.General.AST as AST
 import qualified LLVM.General.AST.Type as Type
+import qualified LLVM.General.AST.Constant as Constant
 
 import Control.Lens
 import qualified Data.Map as Map
@@ -32,14 +33,14 @@ emptyNames :: Names
 emptyNames = Map.empty
 
 -- TODO: add more base types.
-baseVarType = [("int", Type.i64)]
+baseVarType = [("int", Type.i32)]
 baseFunType = []
 
 emptySymbolTable :: SymbolTable
-emptySymbolTable = [Map.empty]
+emptySymbolTable = [Map.fromList [("str", AST.ConstantOperand $ Constant.GlobalReference (Type.ptr Type.i8) (AST.Name "str"))]]
 
 initTypeTable :: TypeTable
-initTypeTable = [Map.fromList [("int", Type.i64)]]
+initTypeTable = [Map.fromList [("int", Type.i32)]]
 
 -- Function Table
 type FuncTable = [Map.Map Symbol Type.Type]

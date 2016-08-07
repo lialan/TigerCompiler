@@ -15,10 +15,11 @@ import qualified Data.Map as Map
 import Control.Applicative
 import Control.Monad (when)
 import Data.Maybe (isJust, fromJust, fromMaybe)
+import Debug.Trace
 
 -- register a variable to symbol table
 registerIntVar :: Symbol -> Codegen A.Operand
-registerIntVar var = registerVar var T.i64
+registerIntVar var = registerVar var T.i32
 
 registerVar :: Symbol -> T.Type -> Codegen A.Operand
 registerVar var ty = do
@@ -38,7 +39,7 @@ codegenProgram e = do
         setBB entry
         codegen e >>= ret
       blocks = createBlocks cgs
-      mainFunction = createFuncDef T.i64 "main" [] blocks
+      mainFunction = createFuncDef T.i32 "main" [] blocks
       defList = [mainFunction] ++ cgs^.funcDefs
   mapM_ addDefinition (intrinsics ++ defList)
 
@@ -83,10 +84,10 @@ loadParam fd@(Field sym _ fty) = do
 -- end of codegen function
 
 
--- all integers are 64 bit at the moment...
+-- all integers are 32 bit at the moment...
 codegen :: Exp -> Codegen A.Operand
 -- constant
-codegen (IntExp i) = return $ A.ConstantOperand $ C.Int 64 i
+codegen (IntExp i) = return $ A.ConstantOperand $ C.Int 32 i
 
 -- variables should be handled separately
 codegen (VarExp v) = emitInst =<< load <$> cgVar v
@@ -98,7 +99,14 @@ codegen (OpExp lhs op rhs) = case binops^.at op of
 -- call
 codegen (CallExp f args) = do
   ty <- lookupFuncTable f
-  emitInst =<< call (externFunc (A.Name f)) <$> mapM codegen args
+  case f of
+    "printf" -> do
+                 let strg = C.GlobalReference (T.ArrayType 3 T.i8) (A.Name "str")
+                 let strhead = A.ConstantOperand $ C.GetElementPtr True strg [C.Int 32 0, C.Int 32 0]
+                 trace ("strhead: " ++ show strhead) $ return ()
+                 arg <- mapM codegen args
+                 emitInst $ call (externFunc (A.Name f)) ([strhead] ++ arg)
+    _        -> emitInst =<< call (externFunc (A.Name f)) <$> mapM codegen args
 
 -- assign
 codegen (AssignExp var exp) = emitInst =<< store <$> cgVar var <*> codegen exp
@@ -229,7 +237,7 @@ cgDec (VarDec name _ mty initExp) =
   case mty of
     Just t  -> do
                  ty <- getType t
-                 case ty == T.i64 of
+                 case ty == T.i32 of
                    True  -> simpleVarDec
                    False -> cgArray name ty initExp
     Nothing -> simpleVarDec
@@ -254,7 +262,7 @@ cgArray aname ty (ArrayExp aty' (IntExp asize) ainit) = do
   -- TODO: init array
   initval <- codegen ainit
   aptr <- emitInst $ bitcast (T.ptr T.i8) array
-  emitInst $ call (memset elemty) [aptr, i8zero, int asize, int32 16, i1false]
+  emitInst $ call (memset elemty) [aptr, i8val 0, int asize, int 1, i1false]
   -- register type
   st <- use symtab
   symtab .= [Map.insert aname array (head st)] ++ (tail st)

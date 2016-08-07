@@ -42,9 +42,10 @@ runFile = do
   putStrLn "Parsed tree:"
   print parseTree
   let codegenResult = lower2LLVMAST parseTree
+  putStrLn "Codegen Tree:"
+  print codegenResult
   putStrLn "LLVM-General print:"
   ppModule codegenResult
-  putStrLn "JIT output:"
   optimizedResult <- runJIT codegenResult
   return ()
 

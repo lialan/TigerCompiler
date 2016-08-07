@@ -67,10 +67,10 @@ load ptr = I.Load False ptr Nothing 0 []
 
 -- function references
 externFunc :: A.Name -> A.Operand
-externFunc = A.ConstantOperand . C.GlobalReference T.i64
+externFunc = A.ConstantOperand . C.GlobalReference T.i32
 
 local :: A.Name -> A.Operand
-local = A.LocalReference T.i64
+local = A.LocalReference T.i32
 
 -- First argument: reference to the array
 gep :: A.Operand -> A.Operand -> A.Instruction
@@ -83,7 +83,7 @@ bitcast toTy value = I.BitCast value toTy []
 memset :: A.Type -> A.Operand
 memset ty =
   case ty of
-    i64 -> A.ConstantOperand $ C.GlobalReference T.void (A.Name "llvm.memset.p0i8.i64")
+    i32 -> A.ConstantOperand $ C.GlobalReference T.void (A.Name "llvm.memset.p0i8.i32")
     _   -> error $ "memset function not implemented for type: " ++ show ty
 
 
@@ -91,17 +91,14 @@ ifelseTest :: A.Operand -> A.Instruction
 ifelseTest cond = I.ICmp IP.NE zero cond []
 
 int :: Integer -> A.Operand
-int val = A.ConstantOperand $ C.Int 64 val
+int val = A.ConstantOperand $ C.Int 32 val
 
 zero, one :: A.Operand
 zero = int 0
 one  = int 1
 
-i8zero :: A.Operand
-i8zero = A.ConstantOperand $ C.Int 8 0
-
-int32 :: Integer -> A.Operand
-int32 val = A.ConstantOperand $ C.Int 32 val
+i8val :: Integer -> A.Operand
+i8val val = A.ConstantOperand $ C.Int 8 val
 
 int1 :: Integer -> A.Operand
 int1 val = A.ConstantOperand $ C.Int 1 val
