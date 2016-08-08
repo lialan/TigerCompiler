@@ -1,5 +1,5 @@
 # TigerCompiler
 
-The educational language Tiger, implemented in Haskell. Writes to LLVM IR.
+Tiger is a toy language.
 
-Work in progress.
+The educational language Tiger compiler, implemented in Haskell. Writes to LLVM IR.
